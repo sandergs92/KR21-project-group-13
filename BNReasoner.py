@@ -1,5 +1,6 @@
 from typing import Union
 from BayesNet import BayesNet
+from collections import defaultdict
 import networkx as nx
 
 
@@ -47,5 +48,24 @@ class BNReasoner:
             print("There is no path between " + x + " and " + y + " given " + str(givens) + " , therefore they are independent.")
         nx.draw(undirected_ancestral_graph, with_labels = True)
 
-    def new_function():
-        print("test")
+    def min_degree_order(self):
+        # Create interaction graph and set variable with nodes
+        interaction_graph = self.bn.get_interaction_graph()
+        x_vars = interaction_graph.nodes()
+        min_degree_order = []
+        # Loop through amount of variables/nodes
+        for _ in range(0, len(x_vars)):
+            # Loop through each node, make dict of amount neighbours
+            neigbour_dict = defaultdict(int)
+            for node in x_vars:
+                neigbour_dict[node] = len(list(interaction_graph.neighbors(node)))
+            # Select node that minimizes |ne(X)|
+            min_neigbours_node = min(neigbour_dict, key=neigbour_dict.get)
+            # add to order
+            min_degree_order.append(min_neigbours_node)
+            # remove node from interaction graph
+            interaction_graph.remove_node(min_neigbours_node)
+        return min_degree_order
+
+    def min_fill_order(self):
+        return 0
