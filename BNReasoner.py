@@ -46,3 +46,6 @@ class BNReasoner:
         else:
             print("There is no path between " + x + " and " + y + " given " + str(givens) + " , therefore they are independent.")
         nx.draw(undirected_ancestral_graph, with_labels = True)
+
+    def new_function():
+        print("test")
