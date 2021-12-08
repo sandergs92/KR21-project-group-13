@@ -77,5 +77,6 @@ class BNReasoner:
             var_edges = interaction_graph.number_of_edges()
             min_fill_order[node] = var_edges
         # remove node with least amount of edges from interaction graph
-        interaction_graph.remove_node(min(min_fill_order, key=min_fill_order.get))
+        min_edges_node = min(min_fill_order, key=min_fill_order.get)
+        interaction_graph.remove_node(min_edges_node)
         return sorted(min_fill_order.items(), key=lambda x: x[1], reverse=True)
