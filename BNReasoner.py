@@ -68,4 +68,12 @@ class BNReasoner:
         return min_degree_order
 
     def min_fill_order(self):
-        return 0
+        # Create interaction graph and set variable with nodes
+        interaction_graph = self.bn.get_interaction_graph()
+        x_vars = interaction_graph.nodes()
+        min_fill_order = {}
+        # loop through each node and retrieve its number of edges
+        for node in x_vars:
+            var_edges = interaction_graph.number_of_edges()
+            min_fill_order[node] = var_edges
+        return sorted(min_fill_order.items(), key=lambda x: x[1], reverse=True)
