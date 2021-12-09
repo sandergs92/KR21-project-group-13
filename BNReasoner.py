@@ -20,7 +20,7 @@ class BNReasoner:
         else:
             self.bn = net
 
-    def d_seperation(self, x: str, y: str, givens: list):
+    def d_seperation(self, x: str, y: str, givens: list[str]):
         # ANCESTRAL GRAPH
         # First create subgraph from given variables
         nodes = [x] + [y] + givens
@@ -76,7 +76,7 @@ class BNReasoner:
         joint_probability_distribution = self.multiply_factors(cpt_list)
         return joint_probability_distribution
 
-    def create_empty_truth_table(self, cpt_vars: list):
+    def create_empty_truth_table(self, cpt_vars: list[str]):
         n_vars = len(cpt_vars)
         cpt_vars.append('p')
         empty_cpt = pd.DataFrame(columns=cpt_vars, index=range(2**(n_vars)))
@@ -86,13 +86,13 @@ class BNReasoner:
             empty_cpt.loc[i] = truth_values[i] + [np.nan]
         return empty_cpt
 
-    def sum_out_vars(self, cpt: pd.DataFrame, subset_vars: list):
+    def sum_out_vars(self, cpt: pd.DataFrame, subset_vars: list[str]):
         summed_out_cpt = cpt.drop(subset_vars, axis=1)
         new_vars = [item for item in cpt.columns.tolist()[:-1] if item not in subset_vars]
         summed_out_cpt = summed_out_cpt.groupby(new_vars).sum().reset_index()
         return summed_out_cpt
 
-    def multiply_factors(self, cpts: list):
+    def multiply_factors(self, cpts: list[pd.DataFrame]):
         final_cpt = 0
         for previous, current in zip(cpts, cpts[1:]):
             if not isinstance(final_cpt, pd.DataFrame):
