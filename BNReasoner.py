@@ -86,6 +86,12 @@ class BNReasoner:
             empty_cpt.loc[i] = truth_values[i] + [np.nan]
         return empty_cpt
 
+    def max_out_vars(self, cpt: pd.DataFrame, subset_vars: list[str]):
+        maxxed_out_cpt = cpt.drop(subset_vars, axis=1)
+        new_vars = [item for item in cpt.columns.tolist()[:-1] if item not in subset_vars]
+        maxxed_out_cpt = maxxed_out_cpt.groupby(new_vars).max().reset_index()
+        return maxxed_out_cpt
+
     def sum_out_vars(self, cpt: pd.DataFrame, subset_vars: list[str]):
         summed_out_cpt = cpt.drop(subset_vars, axis=1)
         new_vars = [item for item in cpt.columns.tolist()[:-1] if item not in subset_vars]
