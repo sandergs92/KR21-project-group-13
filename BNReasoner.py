@@ -72,23 +72,36 @@ class BNReasoner:
     def min_fill_order(self):
         return 0
 
-    def multiply_factors(self, cpt_1, cpt_2):
+    def get_joint_probability_distribution(self):
+        cpt_list = [self.bn.get_cpt(x) for x in self.bn.get_all_variables()] 
+        joint_probability_distribution = self.multiply_factors(cpt_list)
+        return joint_probability_distribution
+
+    def multiply_factors(self, cpts: list):
+        final_cpt = 0
+        for previous, current in zip(cpts, cpts[1:]):
+            if not isinstance(final_cpt, pd.DataFrame):
+                final_cpt = previous
+            final_cpt = self.cpt_product(current, final_cpt)
+        return final_cpt
+
+    def cpt_product(self, cpt_1, cpt_2):
         # Create new table
-        column_cpt1 = self.bn.get_cpt(cpt_1).columns.tolist()[:-1]
-        column_cpt2 = self.bn.get_cpt(cpt_2).columns.tolist()[:-1]
+        column_cpt1 = cpt_1.columns.tolist()[:-1]
+        column_cpt2 = cpt_2.columns.tolist()[:-1]
         new_column = column_cpt2 + list(set(column_cpt1) - set(column_cpt2))
         n_vars = len(new_column)
         new_column.append('p')
-        new_cpt = pd.DataFrame(columns=new_column, index=range(2**(n_vars)))
+        cpt_product = pd.DataFrame(columns=new_column, index=range(2**(n_vars)))
         # Fill table with truth values
         truth_values = [list(i) for i in product([False, True], repeat=n_vars)]
         for i in range(2**(n_vars)):
-            new_cpt.loc[i] = truth_values[i] + [np.nan]
+            cpt_product.loc[i] = truth_values[i] + [np.nan]
         # Iterate through each row of new CPT
-        iters = [self.bn.get_cpt(cpt_1).iterrows(), self.bn.get_cpt(cpt_2).iterrows(), new_cpt.iterrows()]
+        iters = [cpt_1.iterrows(), cpt_2.iterrows(), cpt_product.iterrows()]
         for row_cpt1, row_cpt2, row_new_cpt in product(*iters):
             if row_cpt1[1][:-1].to_dict().items() <= row_new_cpt[1][:-1].to_dict().items() and row_cpt2[1][:-1].to_dict().items() <= row_new_cpt[1][:-1].to_dict().items():
-                if math.isnan(new_cpt.iloc[[row_new_cpt[0]]]['p']):
+                if math.isnan(cpt_product.iloc[[row_new_cpt[0]]]['p']):
                     result = row_cpt1[1]['p'] * row_cpt2[1]['p']
-                    new_cpt.at[row_new_cpt[0], 'p'] = result
-        return new_cpt
+                    cpt_product.at[row_new_cpt[0], 'p'] = result
+        return cpt_product
