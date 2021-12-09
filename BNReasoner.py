@@ -20,7 +20,7 @@ class BNReasoner:
         else:
             self.bn = net
 
-    def d_seperation(self, x, y, givens):
+    def d_seperation(self, x: str, y: str, givens: list):
         # ANCESTRAL GRAPH
         # First create subgraph from given variables
         nodes = [x] + [y] + givens
@@ -43,12 +43,11 @@ class BNReasoner:
         # DELETE GIVENS
         for given in givens:
             undirected_ancestral_graph.remove_node(given)
-
+        # nx.draw(undirected_ancestral_graph, with_labels = True)
         if nx.has_path(undirected_ancestral_graph, x, y):
-            print("There is a path. Therefore, it is not guaranteed that they are independent.")
+            return True
         else:
-            print("There is no path between " + x + " and " + y + " given " + str(givens) + " , therefore they are independent.")
-        nx.draw(undirected_ancestral_graph, with_labels = True)
+            return False
 
     def min_degree_order(self):
         # Create interaction graph and set variable with nodes
@@ -77,6 +76,22 @@ class BNReasoner:
         joint_probability_distribution = self.multiply_factors(cpt_list)
         return joint_probability_distribution
 
+    def create_empty_truth_table(self, cpt_vars: list):
+        n_vars = len(cpt_vars)
+        cpt_vars.append('p')
+        empty_cpt = pd.DataFrame(columns=cpt_vars, index=range(2**(n_vars)))
+        # Fill table with truth values
+        truth_values = [list(i) for i in product([False, True], repeat=n_vars)]
+        for i in range(2**(n_vars)):
+            empty_cpt.loc[i] = truth_values[i] + [np.nan]
+        return empty_cpt
+
+    def sum_out_vars(self, cpt: pd.DataFrame, subset_vars: list):
+        # Create new table
+        column_cpt = [item for item in cpt.columns.tolist()[:-1] if item not in subset_vars] 
+        summed_out_cpt = self.create_empty_truth_table(column_cpt)
+        return summed_out_cpt
+
     def multiply_factors(self, cpts: list):
         final_cpt = 0
         for previous, current in zip(cpts, cpts[1:]):
@@ -85,18 +100,12 @@ class BNReasoner:
             final_cpt = self.cpt_product(current, final_cpt)
         return final_cpt
 
-    def cpt_product(self, cpt_1, cpt_2):
+    def cpt_product(self, cpt_1: pd.DataFrame, cpt_2: pd.DataFrame):
         # Create new table
         column_cpt1 = cpt_1.columns.tolist()[:-1]
         column_cpt2 = cpt_2.columns.tolist()[:-1]
         new_column = column_cpt2 + list(set(column_cpt1) - set(column_cpt2))
-        n_vars = len(new_column)
-        new_column.append('p')
-        cpt_product = pd.DataFrame(columns=new_column, index=range(2**(n_vars)))
-        # Fill table with truth values
-        truth_values = [list(i) for i in product([False, True], repeat=n_vars)]
-        for i in range(2**(n_vars)):
-            cpt_product.loc[i] = truth_values[i] + [np.nan]
+        cpt_product = self.create_empty_truth_table(new_column)
         # Iterate through each row of new CPT
         iters = [cpt_1.iterrows(), cpt_2.iterrows(), cpt_product.iterrows()]
         for row_cpt1, row_cpt2, row_new_cpt in product(*iters):
