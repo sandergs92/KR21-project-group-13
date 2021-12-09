@@ -87,9 +87,9 @@ class BNReasoner:
         return empty_cpt
 
     def sum_out_vars(self, cpt: pd.DataFrame, subset_vars: list):
-        # Create new table
-        column_cpt = [item for item in cpt.columns.tolist()[:-1] if item not in subset_vars] 
-        summed_out_cpt = self.create_empty_truth_table(column_cpt)
+        summed_out_cpt = cpt.drop(subset_vars, axis=1)
+        new_vars = [item for item in cpt.columns.tolist()[:-1] if item not in subset_vars]
+        summed_out_cpt = summed_out_cpt.groupby(new_vars).sum().reset_index()
         return summed_out_cpt
 
     def multiply_factors(self, cpts: list):
