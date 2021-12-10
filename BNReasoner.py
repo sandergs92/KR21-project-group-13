@@ -1,7 +1,7 @@
 from typing import Union
 from BayesNet import BayesNet
 from collections import defaultdict
-from itertools import product
+from itertools import product, chain
 import networkx as nx
 import pandas as pd
 import numpy as np
@@ -49,16 +49,17 @@ class BNReasoner:
         else:
             return False
 
-    def min_degree_order(self, x_vars: list[str]):
+    def min_degree_order(self, elim_vars: list[str]):
         # Create interaction graph and set variable with nodes
         interaction_graph = self.bn.get_interaction_graph()
         min_degree_order = []
         # Loop through amount of variables/nodes
-        for _ in range(0, len(x_vars)):
+        for _ in range(0, len(elim_vars)):
             # Loop through each node, make dict of amount neighbours
             neigbour_dict = defaultdict(int)
-            for node in x_vars:
-                neigbour_dict[node] = len(list(interaction_graph.neighbors(node)))
+            for node in elim_vars:
+                if node not in min_degree_order:
+                    neigbour_dict[node] = len(list(interaction_graph.neighbors(node)))
             # Select node that minimizes |ne(X)|
             min_neigbours_node = min(neigbour_dict, key=neigbour_dict.get)
             # add to order
@@ -98,6 +99,8 @@ class BNReasoner:
         return summed_out_cpt
 
     def multiply_factors(self, cpts: list[pd.DataFrame]):
+        if len(cpts) == 1:
+            return cpts[0]
         final_cpt = 0
         for previous, current in zip(cpts, cpts[1:]):
             if not isinstance(final_cpt, pd.DataFrame):
@@ -119,3 +122,18 @@ class BNReasoner:
                     result = row_cpt1[1]['p'] * row_cpt2[1]['p']
                     cpt_product.at[row_new_cpt[0], 'p'] = result
         return cpt_product
+
+    def prior_marginal(self, query_vars: list[str]):
+        ## first multiply every variable from query
+        start_cpt = self.multiply_factors([self.bn.get_cpt(node) for node in query_vars])
+        ancestors = [list(nx.algorithms.dag.ancestors(self.bn.structure, node)) for node in query_vars]
+        # order heuristic needs to be dynamic
+        pi = self.min_degree_order(list(chain(*ancestors)))
+        pi.reverse()
+
+        for node in pi: 
+            # Multiply
+            start_cpt = self.cpt_product(start_cpt, self.bn.get_cpt(node))
+            # Sum-out
+            start_cpt = self.sum_out_vars(start_cpt, [node])
+        return start_cpt
