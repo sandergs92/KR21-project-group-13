@@ -49,10 +49,9 @@ class BNReasoner:
         else:
             return False
 
-    def min_degree_order(self):
+    def min_degree_order(self, x_vars: list[str]):
         # Create interaction graph and set variable with nodes
         interaction_graph = self.bn.get_interaction_graph()
-        x_vars = interaction_graph.nodes()
         min_degree_order = []
         # Loop through amount of variables/nodes
         for _ in range(0, len(x_vars)):
