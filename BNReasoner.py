@@ -70,13 +70,29 @@ class BNReasoner:
     def min_fill_order(self):
         # Create interaction graph and set variable with nodes
         interaction_graph = self.bn.get_interaction_graph()
+        min_fill_graph = interaction_graph.__class__()
+        min_fill_graph.add_nodes_from(interaction_graph)
         x_vars = interaction_graph.nodes()
         min_fill_order = {}
-        # loop through each node and retrieve its number of edges
+        # Loop through each node and retrieve its neighbours
         for node in x_vars:
-            var_edges = interaction_graph.number_of_edges()
-            min_fill_order[node] = var_edges
+            neighbours = list(interaction_graph.neighbors(node))
+            # Loop over neighbours and check if they are are connected
+            for x in neighbours:
+                for y in neighbours:
+                    # print(x, y)
+                    if x == y:
+                        continue
+                    elif x not in interaction_graph.neighbors(y):
+                        min_fill_graph.add_edge(x, y)
+        fill_vars = min_fill_graph.nodes()
+        for node in fill_vars:
+            var_edges = min_fill_graph.edges(node)
+            min_fill_order[node] = len(var_edges)
         # remove node with least amount of edges from interaction graph
         min_edges_node = min(min_fill_order, key=min_fill_order.get)
         interaction_graph.remove_node(min_edges_node)
         return sorted(min_fill_order.items(), key=lambda x: x[1], reverse=True)
+
+    def prune_nodes(self, query, evidence):
+        pass
