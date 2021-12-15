@@ -1,7 +1,7 @@
 from typing import Union
 from BayesNet import BayesNet
 from collections import defaultdict
-from itertools import product, chain
+from itertools import product, chain, combinations
 import networkx as nx
 import pandas as pd
 import numpy as np
@@ -70,36 +70,30 @@ class BNReasoner:
             interaction_graph.remove_node(min_neigbours_node)
         return min_degree_order
 
-    def min_fill_order(self):
+    def min_fill_order(self, elim_vars: list[str]):
         # Create interaction graph and set variable with nodes
-        interaction_graph = self.bn.get_interaction_graph()
-        x_vars = interaction_graph.nodes()
-        # Create copy of interaction graph without links between nodes
-        min_fill_graph = interaction_graph.__class__()
-        min_fill_graph.add_nodes_from(interaction_graph)
-        # dictionary to store results in
-        min_fill_order = {}
+        interaction_graph = copy.deepcopy(self.bn.get_interaction_graph())
+        min_fill_order = []
         # Loop through each node and retrieve its neighbours
-        for node in x_vars:
-            neighbours = list(interaction_graph.neighbors(node))
-            # Loop over neighbours and check if they are are connected
-            for x in neighbours:
-                for y in neighbours:
-                    # print(x, y)
-                    if x == y:
-                        continue
-                    # if neighbours are not connected, create new link between neighbours
-                    elif x not in interaction_graph.neighbors(y):
-                        min_fill_graph.add_edge(x, y)
-        # loop over all nodes and count amount of new connections
-        fill_vars = min_fill_graph.nodes()
-        for node in fill_vars:
-            var_edges = min_fill_graph.edges(node)
-            min_fill_order[node] = len(var_edges)
-        # remove node with least amount of filled links from interaction graph
-        min_fill_node = min(min_fill_order, key=min_fill_order.get)
-        interaction_graph.remove_node(min_fill_node)
-        return sorted(min_fill_order.items(), key=lambda x: x[1], reverse=True)
+        for _ in range(0, len(elim_vars)):
+            # Loop through each node, make dict of amount neighbours
+            fill_in_dict = {}
+            for node in elim_vars:
+                if node not in min_fill_order:
+                    # Get neighbors of node
+                    neighbors = list(interaction_graph.neighbors(node))
+                    fill_in_dict[node] = {'n_edges': 0, 'neighbors': []}
+                    if len(neighbors) > 1:
+                        comb_neighbors = list(combinations(neighbors, r=2)) 
+                        fill_in_dict[node]['neighbors'] += [edge for edge in comb_neighbors if edge not in interaction_graph.edges]
+                        fill_in_dict[node]['n_edges'] = len(fill_in_dict[node]['neighbors'])
+            min_fill_in_node = min(fill_in_dict, key=lambda x: fill_in_dict[x]['n_edges'])
+            min_fill_order.append(min_fill_in_node)
+            # Add an edge between each non--adjacent neighbours
+            interaction_graph.add_edges_from(fill_in_dict[min_fill_in_node]['neighbors'])
+            # remove node from interaction graph
+            interaction_graph.remove_node(min_fill_in_node)
+        return min_fill_order
 
     def get_joint_probability_distribution(self):
         cpt_list = [self.bn.get_cpt(x) for x in self.bn.get_all_variables()] 
