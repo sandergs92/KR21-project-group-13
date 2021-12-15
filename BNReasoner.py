@@ -1,7 +1,7 @@
 from typing import Union
 from BayesNet import BayesNet
 from collections import defaultdict
-from itertools import product, chain
+from itertools import product, chain, combinations
 import networkx as nx
 import pandas as pd
 import numpy as np
@@ -70,8 +70,30 @@ class BNReasoner:
             interaction_graph.remove_node(min_neigbours_node)
         return min_degree_order
 
-    def min_fill_order(self):
-        return 0
+    def min_fill_order(self, elim_vars: list[str]):
+        # Create interaction graph and set variable with nodes
+        interaction_graph = copy.deepcopy(self.bn.get_interaction_graph())
+        min_fill_order = []
+        # Loop through each node and retrieve its neighbours
+        for _ in range(0, len(elim_vars)):
+            # Loop through each node, make dict of amount neighbours
+            fill_in_dict = {}
+            for node in elim_vars:
+                if node not in min_fill_order:
+                    # Get neighbors of node
+                    neighbors = list(interaction_graph.neighbors(node))
+                    fill_in_dict[node] = {'n_edges': 0, 'neighbors': []}
+                    if len(neighbors) > 1:
+                        comb_neighbors = list(combinations(neighbors, r=2)) 
+                        fill_in_dict[node]['neighbors'] += [edge for edge in comb_neighbors if edge not in interaction_graph.edges]
+                        fill_in_dict[node]['n_edges'] = len(fill_in_dict[node]['neighbors'])
+            min_fill_in_node = min(fill_in_dict, key=lambda x: fill_in_dict[x]['n_edges'])
+            min_fill_order.append(min_fill_in_node)
+            # Add an edge between each non--adjacent neighbours
+            interaction_graph.add_edges_from(fill_in_dict[min_fill_in_node]['neighbors'])
+            # remove node from interaction graph
+            interaction_graph.remove_node(min_fill_in_node)
+        return min_fill_order
 
     def get_joint_probability_distribution(self):
         cpt_list = [self.bn.get_cpt(x) for x in self.bn.get_all_variables()] 
