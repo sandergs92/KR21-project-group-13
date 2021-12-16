@@ -36,8 +36,7 @@ class BNReasoner:
                 for previous, current in zip(predecessors, predecessors[1:]):
                     undirected_ancestral_graph.add_edge(previous, current)
         # DELETE GIVENS
-        for given in givens:
-            undirected_ancestral_graph.remove_node(given)
+        undirected_ancestral_graph.remove_nodes_from(givens)
         nx.draw(undirected_ancestral_graph, with_labels = True)
         result_dsep = False
         for x_node, y_node in product(x, y):
