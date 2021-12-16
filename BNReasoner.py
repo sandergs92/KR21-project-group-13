@@ -1,7 +1,7 @@
 from typing import Union
 from BayesNet import BayesNet
 from collections import defaultdict
-from itertools import product, chain, combinations
+from itertools import product, combinations
 import networkx as nx
 import pandas as pd
 import numpy as np
@@ -51,7 +51,7 @@ class BNReasoner:
         interaction_graph = copy.deepcopy(self.bn.get_interaction_graph())
         min_degree_order = []
         # Loop through amount of variables/nodes
-        for _ in range(0, len(elim_vars)):
+        for _ in range(len(elim_vars)):
             # Loop through each node, make dict of amount neighbours
             neigbour_dict = defaultdict(int)
             for node in elim_vars:
@@ -74,7 +74,7 @@ class BNReasoner:
         interaction_graph = copy.deepcopy(self.bn.get_interaction_graph())
         min_fill_order = []
         # Loop through each node and retrieve its neighbours
-        for _ in range(0, len(elim_vars)):
+        for _ in range(len(elim_vars)):
             # Loop through each node, make dict of amount neighbours
             fill_in_dict = {}
             for node in elim_vars:
@@ -146,23 +146,32 @@ class BNReasoner:
                     cpt_product.at[row_new_cpt[0], 'p'] = result
         return cpt_product
 
-    def prior_marginal(self, query_vars: list[str]):
-        ## first multiply every variable from query
-        start_cpt = self.multiply_factors([self.bn.get_cpt(node) for node in query_vars])
-        # BRAIN FART
-        # maak subgraph van ancestors
-        # bepaal het pad has path
-        ancestors = [list(nx.algorithms.dag.ancestors(self.bn.structure, node)) for node in query_vars]
-        # order heuristic needs to be dynamic
-        pi = self.min_degree_order(list(chain(*ancestors)))
-        pi.reverse()
-
-        for node in pi: 
-            # Multiply
-            start_cpt = self.cpt_product(start_cpt, self.bn.get_cpt(node))
-            # Sum-out
-            start_cpt = self.sum_out_vars(start_cpt, [node])
-        return start_cpt
+    def prior_marginal(self, query_vars: list[str], elimination_heuristic: int = 1):
+            # First prune network
+            pruned_network, pruned_cpts = self.prune_network(query_vars)
+            nx.draw_networkx(pruned_network)
+            # Determine elimination order
+            if elimination_heuristic == 1:
+                var_elim_order = self.min_degree_order(pruned_network.nodes() - query_vars)
+            elif elimination_heuristic == 2:
+                var_elim_order = self.min_fill_order(pruned_network.nodes() - query_vars)
+            # Loop through each eliminated node, remove them 
+            for elim_node in var_elim_order:
+                for node in pruned_network.nodes():
+                    if elim_node == node or node not in pruned_cpts.keys():
+                        continue
+                    elim_node_cpt = pruned_cpts[elim_node]
+                    network_node_cpt = pruned_cpts[node]
+                    # Check for each CPT, does it contain the variable needs to be eliminated
+                    if elim_node in network_node_cpt.columns.tolist()[:-1]:
+                        # if found variable elimination
+                        result_cpt = self.cpt_product(elim_node_cpt, network_node_cpt)
+                        result_cpt = self.sum_out_vars(result_cpt, [elim_node])
+                        pruned_cpts[node] = result_cpt
+                # If we finished for loop, pop elimination cpt from cpts
+                pruned_cpts.pop(elim_node, None)
+            # Lastly multiply each new factor to get the prior marginal 
+            return self.multiply_factors(list(pruned_cpts.values()))
 
     def node_pruning(self, rest_nodes: list[str]):
         cpts = self.bn.get_all_cpts()
