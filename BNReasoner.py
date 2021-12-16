@@ -25,7 +25,7 @@ class BNReasoner:
         # ANCESTRAL GRAPH
         # First create subgraph from given variables
         nodes = x + y + givens
-        ancestral_graph = self.prune_network(nodes)
+        ancestral_graph, cpts = self.prune_network(nodes)
         # MORALIZE AND DISORIENT
         # First create undirected graph from ancestral graph
         undirected_ancestral_graph = ancestral_graph.to_undirected()
@@ -165,6 +165,7 @@ class BNReasoner:
         return start_cpt
 
     def node_pruning(self, rest_nodes: list[str]):
+        cpts = self.bn.get_all_cpts()
         subgraph = self.bn.structure.subgraph(rest_nodes).copy()
         # Then add all ancestors of given variables
         for node in rest_nodes:
@@ -173,30 +174,30 @@ class BNReasoner:
             ancestors.append(node)
             ancestors_subgraph = self.bn.structure.subgraph(ancestors).copy()
             subgraph = nx.algorithms.operators.binary.compose(subgraph, ancestors_subgraph)
-        return subgraph
-
-    def edge_pruning(self, node_pruned_network: nx.Graph, evidence: list[tuple]):
-        cpts = self.bn.get_all_cpts()
-        copy_pruned_network = node_pruned_network.copy()
         # Drop all cpts that aren't relevant
-        for k in self.bn.get_all_variables():
-            if k not in list(node_pruned_network.nodes()):
-                cpts.pop(k, None)
+        for node in self.bn.get_all_variables():
+            if node not in list(subgraph.nodes()):
+                cpts.pop(node, None)
+        return subgraph, cpts
+
+    def edge_pruning(self, node_pruned_network: nx.Graph, evidence: list[tuple], pruned_cpts: dict):
+        copy_cpts = pruned_cpts
+        copy_pruned_network = node_pruned_network.copy()
         for piece in evidence:
             for edge in node_pruned_network.edges(piece):
-                cpt = cpts[edge[1]]
+                cpt = copy_cpts[edge[1]]
                 # Drop rows and columns according to evidence
                 indexNames = cpt[cpt[piece[0]] == (not piece[1])].index
                 cpt = cpt.drop(indexNames, inplace=False).reset_index(drop=True)
                 cpt = cpt.drop([piece[0]], axis=1, inplace=False)
-                cpts[edge[1]] = cpt
+                copy_cpts[edge[1]] = cpt
                 # Remove edge
                 copy_pruned_network.remove_edge(edge[0], edge[1])
-        return copy_pruned_network, cpts
+        return copy_pruned_network, copy_cpts
 
     def prune_network(self, query: list[str], evidence: list[tuple] = None):
-        node_pruned_network = self.node_pruning(query)
+        node_pruned_network, pruned_cpts = self.node_pruning(query)
         if evidence:
-            pruned_network, cpts = self.edge_pruning(node_pruned_network, evidence)
-            return pruned_network, cpts
-        return node_pruned_network
+            pruned_network, pruned_cpts = self.edge_pruning(node_pruned_network, evidence, pruned_cpts)
+            return pruned_network, pruned_cpts
+        return node_pruned_network, pruned_cpts
