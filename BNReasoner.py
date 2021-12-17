@@ -146,10 +146,27 @@ class BNReasoner:
                     cpt_product.at[row_new_cpt[0], 'p'] = result
         return cpt_product
 
+    def posterior_marginal(self, query_vars: list[str], evidence: list[tuple] = None, elimination_heuristic: int = 1):
+        pruned_network, pruned_cpts = self.prune_network(query_vars, evidence)
+        joint_marginal = self.joint_marginal(query_vars, evidence, elimination_heuristic=elimination_heuristic)
+        evidence_factor = 1.0
+        for piece in evidence:
+            evidence_factor *= float(pruned_cpts[piece[0]].loc[pruned_cpts[piece[0]][piece[0]] == piece[1], 'p'])
+        joint_marginal['p'] = joint_marginal['p'].div(evidence_factor)
+        return joint_marginal
+
+    def joint_marginal(self, query_vars: list[str], evidence: list[tuple], elimination_heuristic: int = 1):
+        evidence_vars = [x[0] for x in evidence]
+        prior_marginal_cpt = self.prior_marginal(query_vars + evidence_vars, elimination_heuristic=elimination_heuristic)
+        for piece in evidence:
+            prior_marginal_cpt = prior_marginal_cpt.loc[prior_marginal_cpt[piece[0]] == piece[1]]
+        prior_marginal_cpt = prior_marginal_cpt.drop(evidence_vars, axis=1, inplace=False)
+        prior_marginal_cpt = prior_marginal_cpt.reset_index(drop=True)
+        return prior_marginal_cpt
+
     def prior_marginal(self, query_vars: list[str], elimination_heuristic: int = 1):
             # First prune network
             pruned_network, pruned_cpts = self.prune_network(query_vars)
-            nx.draw_networkx(pruned_network)
             # Determine elimination order
             if elimination_heuristic == 1:
                 var_elim_order = self.min_degree_order(pruned_network.nodes() - query_vars)
