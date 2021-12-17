@@ -1,7 +1,7 @@
 from typing import Union
 from BayesNet import BayesNet
 from collections import defaultdict
-from itertools import product, chain, combinations
+from itertools import product, combinations
 import networkx as nx
 import pandas as pd
 import numpy as np
@@ -25,7 +25,7 @@ class BNReasoner:
         # ANCESTRAL GRAPH
         # First create subgraph from given variables
         nodes = x + y + givens
-        ancestral_graph = self.prune_network(nodes)
+        ancestral_graph, cpts = self.prune_network(nodes)
         # MORALIZE AND DISORIENT
         # First create undirected graph from ancestral graph
         undirected_ancestral_graph = ancestral_graph.to_undirected()
@@ -51,7 +51,7 @@ class BNReasoner:
         interaction_graph = copy.deepcopy(self.bn.get_interaction_graph())
         min_degree_order = []
         # Loop through amount of variables/nodes
-        for _ in range(0, len(elim_vars)):
+        for _ in range(len(elim_vars)):
             # Loop through each node, make dict of amount neighbours
             neigbour_dict = defaultdict(int)
             for node in elim_vars:
@@ -74,7 +74,7 @@ class BNReasoner:
         interaction_graph = copy.deepcopy(self.bn.get_interaction_graph())
         min_fill_order = []
         # Loop through each node and retrieve its neighbours
-        for _ in range(0, len(elim_vars)):
+        for _ in range(len(elim_vars)):
             # Loop through each node, make dict of amount neighbours
             fill_in_dict = {}
             for node in elim_vars:
@@ -146,25 +146,52 @@ class BNReasoner:
                     cpt_product.at[row_new_cpt[0], 'p'] = result
         return cpt_product
 
-    def prior_marginal(self, query_vars: list[str]):
-        ## first multiply every variable from query
-        start_cpt = self.multiply_factors([self.bn.get_cpt(node) for node in query_vars])
-        # BRAIN FART
-        # maak subgraph van ancestors
-        # bepaal het pad has path
-        ancestors = [list(nx.algorithms.dag.ancestors(self.bn.structure, node)) for node in query_vars]
-        # order heuristic needs to be dynamic
-        pi = self.min_degree_order(list(chain(*ancestors)))
-        pi.reverse()
+    def posterior_marginal(self, query_vars: list[str], evidence: list[tuple] = None, elimination_heuristic: int = 1):
+        pruned_network, pruned_cpts = self.prune_network(query_vars, evidence)
+        joint_marginal = self.joint_marginal(query_vars, evidence, elimination_heuristic=elimination_heuristic)
+        evidence_factor = 1.0
+        for piece in evidence:
+            evidence_factor *= float(pruned_cpts[piece[0]].loc[pruned_cpts[piece[0]][piece[0]] == piece[1], 'p'])
+        joint_marginal['p'] = joint_marginal['p'].div(evidence_factor)
+        return joint_marginal
 
-        for node in pi: 
-            # Multiply
-            start_cpt = self.cpt_product(start_cpt, self.bn.get_cpt(node))
-            # Sum-out
-            start_cpt = self.sum_out_vars(start_cpt, [node])
-        return start_cpt
+    def joint_marginal(self, query_vars: list[str], evidence: list[tuple], elimination_heuristic: int = 1):
+        evidence_vars = [x[0] for x in evidence]
+        prior_marginal_cpt = self.prior_marginal(query_vars + evidence_vars, elimination_heuristic=elimination_heuristic)
+        for piece in evidence:
+            prior_marginal_cpt = prior_marginal_cpt.loc[prior_marginal_cpt[piece[0]] == piece[1]]
+        prior_marginal_cpt = prior_marginal_cpt.drop(evidence_vars, axis=1, inplace=False)
+        prior_marginal_cpt = prior_marginal_cpt.reset_index(drop=True)
+        return prior_marginal_cpt
+
+    def prior_marginal(self, query_vars: list[str], elimination_heuristic: int = 1):
+            # First prune network
+            pruned_network, pruned_cpts = self.prune_network(query_vars)
+            # Determine elimination order
+            if elimination_heuristic == 1:
+                var_elim_order = self.min_degree_order(pruned_network.nodes() - query_vars)
+            elif elimination_heuristic == 2:
+                var_elim_order = self.min_fill_order(pruned_network.nodes() - query_vars)
+            # Loop through each eliminated node, remove them 
+            for elim_node in var_elim_order:
+                for node in pruned_network.nodes():
+                    if elim_node == node or node not in pruned_cpts.keys():
+                        continue
+                    elim_node_cpt = pruned_cpts[elim_node]
+                    network_node_cpt = pruned_cpts[node]
+                    # Check for each CPT, does it contain the variable needs to be eliminated
+                    if elim_node in network_node_cpt.columns.tolist()[:-1]:
+                        # if found variable elimination
+                        result_cpt = self.cpt_product(elim_node_cpt, network_node_cpt)
+                        result_cpt = self.sum_out_vars(result_cpt, [elim_node])
+                        pruned_cpts[node] = result_cpt
+                # If we finished for loop, pop elimination cpt from cpts
+                pruned_cpts.pop(elim_node, None)
+            # Lastly multiply each new factor to get the prior marginal 
+            return self.multiply_factors(list(pruned_cpts.values()))
 
     def node_pruning(self, rest_nodes: list[str]):
+        cpts = self.bn.get_all_cpts()
         subgraph = self.bn.structure.subgraph(rest_nodes).copy()
         # Then add all ancestors of given variables
         for node in rest_nodes:
@@ -173,30 +200,30 @@ class BNReasoner:
             ancestors.append(node)
             ancestors_subgraph = self.bn.structure.subgraph(ancestors).copy()
             subgraph = nx.algorithms.operators.binary.compose(subgraph, ancestors_subgraph)
-        return subgraph
-
-    def edge_pruning(self, node_pruned_network: nx.Graph, evidence: list[tuple]):
-        cpts = self.bn.get_all_cpts()
-        copy_pruned_network = node_pruned_network.copy()
         # Drop all cpts that aren't relevant
-        for k in self.bn.get_all_variables():
-            if k not in list(node_pruned_network.nodes()):
-                cpts.pop(k, None)
+        for node in self.bn.get_all_variables():
+            if node not in list(subgraph.nodes()):
+                cpts.pop(node, None)
+        return subgraph, cpts
+
+    def edge_pruning(self, node_pruned_network: nx.Graph, evidence: list[tuple], pruned_cpts: dict):
+        copy_cpts = pruned_cpts
+        copy_pruned_network = node_pruned_network.copy()
         for piece in evidence:
             for edge in node_pruned_network.edges(piece):
-                cpt = cpts[edge[1]]
+                cpt = copy_cpts[edge[1]]
                 # Drop rows and columns according to evidence
                 indexNames = cpt[cpt[piece[0]] == (not piece[1])].index
                 cpt = cpt.drop(indexNames, inplace=False).reset_index(drop=True)
                 cpt = cpt.drop([piece[0]], axis=1, inplace=False)
-                cpts[edge[1]] = cpt
+                copy_cpts[edge[1]] = cpt
                 # Remove edge
                 copy_pruned_network.remove_edge(edge[0], edge[1])
-        return copy_pruned_network, cpts
+        return copy_pruned_network, copy_cpts
 
     def prune_network(self, query: list[str], evidence: list[tuple] = None):
-        node_pruned_network = self.node_pruning(query)
+        node_pruned_network, pruned_cpts = self.node_pruning(query)
         if evidence:
-            pruned_network, cpts = self.edge_pruning(node_pruned_network, evidence)
-            return pruned_network, cpts
-        return node_pruned_network
+            pruned_network, pruned_cpts = self.edge_pruning(node_pruned_network, evidence, pruned_cpts)
+            return pruned_network, pruned_cpts
+        return node_pruned_network, pruned_cpts
