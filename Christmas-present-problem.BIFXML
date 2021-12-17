@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="US-ASCII"?>
+
+<!--Example taken from http://www.cs.cmu.edu/afs/cs/user/fgcozman/www/Research/InterchangeFormat/ -->
+
+<!--
+	Bayesian network in XMLBIF v0.3 (BayesNet Interchange Format)
+	Produced by JavaBayes (http://www.cs.cmu.edu/~javabayes/
+	Output created Wed Aug 12 21:16:40 GMT+01:00 1998
+-->
+
+
+
+<!-- DTD for the XMLBIF 0.3 format -->
+<!DOCTYPE BIF [
+	<!ELEMENT BIF ( NETWORK )*>
+	      <!ATTLIST BIF VERSION CDATA #REQUIRED>
+	<!ELEMENT NETWORK ( NAME, ( PROPERTY | VARIABLE | DEFINITION )* )>
+	<!ELEMENT NAME (#PCDATA)>
+	<!ELEMENT VARIABLE ( NAME, ( OUTCOME |  PROPERTY )* ) >
+	      <!ATTLIST VARIABLE TYPE (nature|decision|utility) "nature">
+	<!ELEMENT OUTCOME (#PCDATA)>
+	<!ELEMENT DEFINITION ( FOR | GIVEN | TABLE | PROPERTY )* >
+	<!ELEMENT FOR (#PCDATA)>
+	<!ELEMENT GIVEN (#PCDATA)>
+	<!ELEMENT TABLE (#PCDATA)>
+	<!ELEMENT PROPERTY (#PCDATA)>
+]>
+
+
+<BIF VERSION="0.3">
+<NETWORK>
+<NAME>Christmas-Present-Problem</NAME>
+
+<!-- Variables -->
+<VARIABLE TYPE="nature">
+	<NAME>look-online</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node A</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>look-store</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node B</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>grandma-likes-cooking</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node C</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>grandma-likes-games</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node D</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>moroccan-cookbook</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node E</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>indian-cookbook</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node F</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>out-of-stock</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node G</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>grandpa-recommendation</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node H</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>too-expensive</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node I</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>chess-sale</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node J</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>poker-sale</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node K</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>grandma-gambling-addict</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node L</PROPERTY>
+</VARIABLE>
+
+<VARIABLE TYPE="nature">
+	<NAME>create-own-present</NAME>
+	<OUTCOME>true</OUTCOME>
+	<OUTCOME>false</OUTCOME>
+	<PROPERTY>node M</PROPERTY>
+</VARIABLE>
+
+
+<!-- Probability distributions -->
+<DEFINITION>
+	<FOR>look-online</FOR>
+	<TABLE>0.6 0.4 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>look-store</FOR>
+	<TABLE>0.3 0.7 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>grandma-likes-cooking</FOR>
+	<GIVEN>look-online</GIVEN>
+	<GIVEN>look-store</GIVEN>
+	<TABLE>0.8 0.2 0.1 0.9 0.4 0.6 0.3 0.7 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>grandma-likes-games</FOR>
+	<GIVEN>look-online</GIVEN>
+	<GIVEN>look-store</GIVEN>
+	<TABLE>0.3 0.7 0.6 0.4 0.2 0.8 0.2 0.8 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>moroccan-cookbook</FOR>
+	<GIVEN>grandma-likes-cooking</GIVEN>
+	<TABLE>0.95 0.05 0.7 0.3 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>indian-cookbook</FOR>
+	<GIVEN>grandma-likes-cooking</GIVEN>
+	<TABLE>0.8 0.2 0.1 0.9 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>out-of-stock</FOR>
+	<GIVEN>moroccan-cookbook</GIVEN>
+	<GIVEN>indian-cookbook</GIVEN>
+	<TABLE>0.25 0.75 0.55 0.45 0.1 0.9 0.3 0.7 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>grandpa-recommendation</FOR>
+	<TABLE>0.2 0.8 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>too-expensive</FOR>
+	<GIVEN>moroccan-cookbook</GIVEN>
+	<GIVEN>indian-cookbook</GIVEN>
+	<TABLE>0.1 0.9 0.3 0.7 0.2 0.8 0.4 0.6 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>chess-sale</FOR>
+	<GIVEN>grandma-likes-games</GIVEN>
+	<TABLE>0.4 0.6 0.3 0.7 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>poker-sale</FOR>
+	<GIVEN>grandma-likes-games</GIVEN>
+	<TABLE>0.1 0.9 0.3 0.7 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>grandma-gambling-addict</FOR>
+	<GIVEN>poker-sale</GIVEN>
+	<GIVEN>grandma-likes-games</GIVEN>
+	<TABLE>0.1 0.9 0.8 0.2 0.4 0.6 0.2 0.8 </TABLE>
+</DEFINITION>
+
+<DEFINITION>
+	<FOR>create-own-present</FOR>
+	<GIVEN>grandma-likes-cooking</GIVEN>
+	<GIVEN>grandma-likes-games</GIVEN>
+	<TABLE>0.4 0.6 0.85 0.15 0.35 0.65 0.2 0.8 </TABLE>
+</DEFINITION>
+
+</NETWORK>
+</BIF>
