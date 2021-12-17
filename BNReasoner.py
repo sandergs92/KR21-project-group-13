@@ -227,19 +227,40 @@ class BNReasoner:
         return G
 
     def set_cpts(self):
+        # retrieve nodes in the system
         nodes = list(self.bn.structure.nodes())
-        parents = {}
+        print(nodes)
+        cpts = {}
         for node in nodes:
-            parents[node] = list(self.bn.structure.predecessors(node))
-        for key, value in parents.items():
-            cpt = BNReasoner.create_empty_truth_table(self, [value])
-            # cpt.columns = [key if x=='p' else x for x in cpt.columns]
-            # cpt['p'] = 'NaN'
-            if len(list(self.bn.structure.predecessors(key))) < 1:
-                # cpt.at[cpt.index[0], key] = 'False'
-                # prob = round(random.uniform(0, 1), 2)
-                # cpt.at[cpt.index[0], 'p'] = prob
-                # true_value = 1 - prob
-                # cpt.loc[1] = ['True', true_value]
-                print(cpt)
-        return parents
+            # retrieve parents of each node
+            predecessors = list(self.bn.structure.predecessors(node))
+            # create tables from each node
+            empty_truth_table = self.create_empty_truth_table(predecessors + [node])
+            # Assign to key dict, empty truth vale
+            cpts[node] = empty_truth_table
+        # Fill in the probabilities
+        # Check length of predecessors
+        # provide random value false 0-1
+        # provide value true == 1 - val false
+        # find situations where parent nodes are false
+            # child is false should have p have higher p than child being true
+
+        # fill probabilities procedure
+        # start at root node and work way down
+
+        # nodes = list(self.bn.structure.nodes())
+        # parents = {}
+        # for node in nodes:
+        #     parents[node] = list(self.bn.structure.predecessors(node))
+        # for key, value in parents.items():
+        #     cpt = BNReasoner.create_empty_truth_table(self, [value])
+        #     cpt.columns = [key if x=='p' else x for x in cpt.columns]
+        #     cpt['p'] = 'NaN'
+        #     if len(list(self.bn.structure.predecessors(key))) < 1:
+        #         cpt.at[cpt.index[0], key] = 'False'
+        #         prob = round(random.uniform(0, 1), 2)
+        #         cpt.at[cpt.index[0], 'p'] = prob
+        #         true_value = 1 - prob
+        #         cpt.loc[1] = ['True', true_value]
+        #         print(cpt)
+        return None
