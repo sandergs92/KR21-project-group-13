@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, List
 from BayesNet import BayesNet
 from collections import defaultdict
 from itertools import product, combinations
@@ -21,7 +21,7 @@ class BNReasoner:
         else:
             self.bn = net
 
-    def d_seperation(self, x: list[str], y: list[str], givens: list[str]):
+    def d_seperation(self, x: List[str], y: List[str], givens: List[str]):
         # ANCESTRAL GRAPH
         # First create subgraph from given variables
         nodes = x + y + givens
@@ -46,7 +46,7 @@ class BNReasoner:
                 result_dsep = True
         return result_dsep
 
-    def min_degree_order(self, elim_vars: list[str]):
+    def min_degree_order(self, elim_vars: List[str]):
         # Create interaction graph and set variable with nodes
         interaction_graph = copy.deepcopy(self.bn.get_interaction_graph())
         min_degree_order = []
@@ -69,7 +69,7 @@ class BNReasoner:
             interaction_graph.remove_node(min_neigbours_node)
         return min_degree_order
 
-    def min_fill_order(self, elim_vars: list[str]):
+    def min_fill_order(self, elim_vars: List[str]):
         # Create interaction graph and set variable with nodes
         interaction_graph = copy.deepcopy(self.bn.get_interaction_graph())
         min_fill_order = []
@@ -99,7 +99,7 @@ class BNReasoner:
         joint_probability_distribution = self.multiply_factors(cpt_list)
         return joint_probability_distribution
 
-    def create_empty_truth_table(self, cpt_vars: list[str]):
+    def create_empty_truth_table(self, cpt_vars: List[str]):
         n_vars = len(cpt_vars)
         cpt_vars.append('p')
         empty_cpt = pd.DataFrame(columns=cpt_vars, index=range(2**(n_vars)))
@@ -109,19 +109,19 @@ class BNReasoner:
             empty_cpt.loc[i] = truth_values[i] + [np.nan]
         return empty_cpt
 
-    def max_out_vars(self, cpt: pd.DataFrame, subset_vars: list[str]):
+    def max_out_vars(self, cpt: pd.DataFrame, subset_vars: List[str]):
         maxxed_out_cpt = cpt.drop(subset_vars, axis=1)
         new_vars = [item for item in cpt.columns.tolist()[:-1] if item not in subset_vars]
         maxxed_out_cpt = maxxed_out_cpt.groupby(new_vars).max().reset_index()
         return maxxed_out_cpt
 
-    def sum_out_vars(self, cpt: pd.DataFrame, subset_vars: list[str]):
+    def sum_out_vars(self, cpt: pd.DataFrame, subset_vars: List[str]):
         summed_out_cpt = cpt.drop(subset_vars, axis=1)
         new_vars = [item for item in cpt.columns.tolist()[:-1] if item not in subset_vars]
         summed_out_cpt = summed_out_cpt.groupby(new_vars).sum().reset_index()
         return summed_out_cpt
 
-    def multiply_factors(self, cpts: list[pd.DataFrame]):
+    def multiply_factors(self, cpts: List[pd.DataFrame]):
         if len(cpts) == 1:
             return cpts[0]
         final_cpt = 0
@@ -146,7 +146,7 @@ class BNReasoner:
                     cpt_product.at[row_new_cpt[0], 'p'] = result
         return cpt_product
 
-    def posterior_marginal(self, query_vars: list[str], evidence: list[tuple] = None, elimination_heuristic: int = 1):
+    def posterior_marginal(self, query_vars: List[str], evidence: List[tuple] = None, elimination_heuristic: int = 1):
         pruned_network, pruned_cpts = self.prune_network(query_vars, evidence)
         joint_marginal = self.joint_marginal(query_vars, evidence, elimination_heuristic=elimination_heuristic)
         evidence_factor = 1.0
@@ -155,7 +155,7 @@ class BNReasoner:
         joint_marginal['p'] = joint_marginal['p'].div(evidence_factor)
         return joint_marginal
 
-    def joint_marginal(self, query_vars: list[str], evidence: list[tuple], elimination_heuristic: int = 1):
+    def joint_marginal(self, query_vars: List[str], evidence: List[tuple], elimination_heuristic: int = 1):
         evidence_vars = [x[0] for x in evidence]
         prior_marginal_cpt = self.prior_marginal(query_vars + evidence_vars, elimination_heuristic=elimination_heuristic)
         for piece in evidence:
@@ -164,7 +164,7 @@ class BNReasoner:
         prior_marginal_cpt = prior_marginal_cpt.reset_index(drop=True)
         return prior_marginal_cpt
 
-    def prior_marginal(self, query_vars: list[str], elimination_heuristic: int = 1):
+    def prior_marginal(self, query_vars: List[str], elimination_heuristic: int = 1):
             # First prune network
             pruned_network, pruned_cpts = self.prune_network(query_vars)
             # Determine elimination order
@@ -190,12 +190,12 @@ class BNReasoner:
             # Lastly multiply each new factor to get the prior marginal 
             return self.multiply_factors(list(pruned_cpts.values()))
 
-    def mpe(self, evidence: list[tuple], elimination_heuristic: int = 1):
+    def mpe(self, evidence: List[tuple], elimination_heuristic: int = 1):
         # Prune network given the evidence
         pruned_network, pruned_cpts = self.edge_pruning(self.bn.structure, evidence, self.bn.get_all_cpts())
         q_nodes = list(pruned_network)
         if elimination_heuristic == 1:
-                var_elim_order = self.min_degree_order(q_nodes)
+            var_elim_order = self.min_degree_order(q_nodes)
         elif elimination_heuristic == 2:
             var_elim_order = self.min_fill_order(q_nodes)
         for elim_node in var_elim_order:
@@ -210,8 +210,27 @@ class BNReasoner:
                     result_cpt = self.max_out_vars(result_cpt, [elim_node])
                     pruned_cpts[node] = result_cpt
         return self.multiply_factors(list(pruned_cpts.values()))
+    
+    def map(self, query_vars: List[str], evidence: List(tuple), elimination_heuristic: int = 1):
+        posterior = self.posterior_marginal(query_vars, evidence, elimination_heuristic)
+        max_pos = posterior['p'].max()
+        return posterior.loc[posterior['p'] == max_pos]
 
-    def node_pruning(self, rest_nodes: list[str]):
+        # Prune network given the query variables and evidence
+        # evidence_vars = [x[0] for x in evidence]
+        # map_nodes = copy(query_vars)
+        # map_nodes.extend(evidence_vars)
+        # pruned_network = self.node_pruning(self.bn.structure, map_nodes)
+        # q_nodes = list(pruned_network)
+        # t_table = self.create_empty_truth_table(query_vars)
+        # if elimination_heuristic == 1:
+        #     var_elim_order = self.min_degree_order(q_nodes)
+        # elif elimination_heuristic == 2:
+        #     var_elim_order = self.min_fill_order(q_nodes)
+        # for i in range(len(t_table.index)):
+        #     pass
+
+    def node_pruning(self, rest_nodes: List[str]):
         cpts = self.bn.get_all_cpts()
         subgraph = self.bn.structure.subgraph(rest_nodes).copy()
         # Then add all ancestors of given variables
@@ -227,7 +246,7 @@ class BNReasoner:
                 cpts.pop(node, None)
         return subgraph, cpts
 
-    def edge_pruning(self, node_pruned_network: nx.Graph, evidence: list[tuple], pruned_cpts: dict):
+    def edge_pruning(self, node_pruned_network: nx.Graph, evidence: List[tuple], pruned_cpts: dict):
         copy_cpts = pruned_cpts
         copy_pruned_network = node_pruned_network.copy()
         for piece in evidence:
@@ -242,7 +261,7 @@ class BNReasoner:
                 copy_pruned_network.remove_edge(edge[0], edge[1])
         return copy_pruned_network, copy_cpts
 
-    def prune_network(self, query: list[str], evidence: list[tuple] = None):
+    def prune_network(self, query: List[str], evidence: List[tuple] = None):
         node_pruned_network, pruned_cpts = self.node_pruning(query)
         if evidence:
             pruned_network, pruned_cpts = self.edge_pruning(node_pruned_network, evidence, pruned_cpts)
