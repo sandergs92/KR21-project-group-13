@@ -1,12 +1,13 @@
-from typing import Union
+from typing import Union, List
 from BayesNet import BayesNet
 from collections import defaultdict
-from itertools import product, chain, combinations
+from itertools import product, chain, combinations, groupby
 import networkx as nx
 import pandas as pd
 import numpy as np
 import math
 import copy
+import random
 
 class BNReasoner:
     def __init__(self, net: Union[str, BayesNet]):
@@ -21,7 +22,7 @@ class BNReasoner:
         else:
             self.bn = net
 
-    def d_seperation(self, x: list[str], y: list[str], givens: list[str]):
+    def d_seperation(self, x: List[str], y: List[str], givens: List[str]):
         # ANCESTRAL GRAPH
         # First create subgraph from given variables
         nodes = x + y + givens
@@ -46,7 +47,7 @@ class BNReasoner:
                 result_dsep = True
         return result_dsep
 
-    def min_degree_order(self, elim_vars: list[str]):
+    def min_degree_order(self, elim_vars: List[str]):
         # Create interaction graph and set variable with nodes
         interaction_graph = copy.deepcopy(self.bn.get_interaction_graph())
         min_degree_order = []
@@ -69,7 +70,7 @@ class BNReasoner:
             interaction_graph.remove_node(min_neigbours_node)
         return min_degree_order
 
-    def min_fill_order(self, elim_vars: list[str]):
+    def min_fill_order(self, elim_vars: List[str]):
         # Create interaction graph and set variable with nodes
         interaction_graph = copy.deepcopy(self.bn.get_interaction_graph())
         min_fill_order = []
@@ -99,7 +100,7 @@ class BNReasoner:
         joint_probability_distribution = self.multiply_factors(cpt_list)
         return joint_probability_distribution
 
-    def create_empty_truth_table(self, cpt_vars: list[str]):
+    def create_empty_truth_table(self, cpt_vars: List[str]):
         n_vars = len(cpt_vars)
         cpt_vars.append('p')
         empty_cpt = pd.DataFrame(columns=cpt_vars, index=range(2**(n_vars)))
@@ -109,19 +110,19 @@ class BNReasoner:
             empty_cpt.loc[i] = truth_values[i] + [np.nan]
         return empty_cpt
 
-    def max_out_vars(self, cpt: pd.DataFrame, subset_vars: list[str]):
+    def max_out_vars(self, cpt: pd.DataFrame, subset_vars: List[str]):
         maxxed_out_cpt = cpt.drop(subset_vars, axis=1)
         new_vars = [item for item in cpt.columns.tolist()[:-1] if item not in subset_vars]
         maxxed_out_cpt = maxxed_out_cpt.groupby(new_vars).max().reset_index()
         return maxxed_out_cpt
 
-    def sum_out_vars(self, cpt: pd.DataFrame, subset_vars: list[str]):
+    def sum_out_vars(self, cpt: pd.DataFrame, subset_vars: List[str]):
         summed_out_cpt = cpt.drop(subset_vars, axis=1)
         new_vars = [item for item in cpt.columns.tolist()[:-1] if item not in subset_vars]
         summed_out_cpt = summed_out_cpt.groupby(new_vars).sum().reset_index()
         return summed_out_cpt
 
-    def multiply_factors(self, cpts: list[pd.DataFrame]):
+    def multiply_factors(self, cpts: List[pd.DataFrame]):
         if len(cpts) == 1:
             return cpts[0]
         final_cpt = 0
@@ -146,7 +147,7 @@ class BNReasoner:
                     cpt_product.at[row_new_cpt[0], 'p'] = result
         return cpt_product
 
-    def prior_marginal(self, query_vars: list[str]):
+    def prior_marginal(self, query_vars: List[str]):
         ## first multiply every variable from query
         start_cpt = self.multiply_factors([self.bn.get_cpt(node) for node in query_vars])
         # BRAIN FART
@@ -164,7 +165,7 @@ class BNReasoner:
             start_cpt = self.sum_out_vars(start_cpt, [node])
         return start_cpt
 
-    def node_pruning(self, rest_nodes: list[str]):
+    def node_pruning(self, rest_nodes: List[str]):
         subgraph = self.bn.structure.subgraph(rest_nodes).copy()
         # Then add all ancestors of given variables
         for node in rest_nodes:
@@ -175,7 +176,7 @@ class BNReasoner:
             subgraph = nx.algorithms.operators.binary.compose(subgraph, ancestors_subgraph)
         return subgraph
 
-    def edge_pruning(self, node_pruned_network: nx.Graph, evidence: list[tuple]):
+    def edge_pruning(self, node_pruned_network: nx.Graph, evidence: List[tuple]):
         cpts = self.bn.get_all_cpts()
         copy_pruned_network = node_pruned_network.copy()
         # Drop all cpts that aren't relevant
@@ -194,9 +195,68 @@ class BNReasoner:
                 copy_pruned_network.remove_edge(edge[0], edge[1])
         return copy_pruned_network, cpts
 
-    def prune_network(self, query: list[str], evidence: list[tuple] = None):
+    def prune_network(self, query: List[str], evidence: List[tuple] = None):
         node_pruned_network = self.node_pruning(query)
         if evidence:
             pruned_network, cpts = self.edge_pruning(node_pruned_network, evidence)
             return pruned_network, cpts
         return node_pruned_network
+    
+    # [code taken from: https://stackoverflow.com/questions/61958360/how-to-create-random-graph-where-each-node-has-at-least-1-edge-using-networkx]
+    # [author: yatu]
+    # [taken on: 16/12/2021]
+    ### Make sure to store random graphs and cpts that we use for our experiment!
+    def gnp_random_connected_graph(self, size=10, probability=0.1):
+        """
+        Generates a random undirected graph, similarly to an Erdős-Rényi 
+        graph, but enforcing that the resulting graph is connected
+        """
+        edges = combinations(range(size), 2)
+        G = nx.Graph()
+        G.add_nodes_from(range(size))
+        if probability <= 0:
+            return G
+        if probability >= 1:
+            return nx.complete_graph(size, create_using=G)
+        for _, node_edges in groupby(edges, key=lambda x: x[0]):
+            node_edges = list(node_edges)
+            random_edge = random.choice(node_edges)
+            G.add_edge(*random_edge)
+            for e in node_edges:
+                if random.random() < probability:
+                    G.add_edge(*e)
+        return G
+
+    def set_cpts(self):
+        # retrieve nodes in the system
+        nodes = list(self.bn.structure.nodes())
+        cpts = {}
+        for node in nodes:
+            # retrieve parents of each node
+            predecessors = list(self.bn.structure.predecessors(node))
+            # create empty truth tables for each node
+            empty_truth_table = self.create_empty_truth_table(predecessors + [node])
+            # Assign to dictionary, using node as key and empty truth table as value
+            cpts[node] = empty_truth_table
+        # iterate over dictionary and assign probabilities
+        for _, t_table in cpts.items():
+            table_size = len(t_table)
+            for i in range(0, table_size, 2):
+                prob = round(random.uniform(0, 1), 2)
+                true_value = 1 - prob
+                t_table.at[t_table.index[i], 'p'] = prob
+                t_table.at[t_table.index[i+1], 'p'] = true_value
+        return cpts
+
+    def performance_evaluation(self, n_networks, factor=10, size=10, probability=0.1):
+        network_dict = {}
+        # create n_networks number of randomized Bayesian networks
+        count = 1
+        for _ in range(n_networks):
+            name = "network" + str(count)
+            network = self.gnp_random_connected_graph(size, probability)
+            cpts = self.set_cpts()
+            network_dict[name] = {'network': network, 'cpts': cpts}
+            count += 1
+            size += factor
+        return network_dict
