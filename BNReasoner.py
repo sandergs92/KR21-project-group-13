@@ -217,6 +217,11 @@ class BNReasoner:
                 query += ' & '
         return mpe.query(query)
 
+    def map_instance(self, query_vars: list[str], evidence: list[tuple], elimination_heuristic: int = 1):
+        posterior = self.posterior_marginal(query_vars, evidence, elimination_heuristic)
+        max_pos = posterior['p'].max()
+        return posterior.loc[posterior['p'] == max_pos]
+
     def node_pruning(self, rest_nodes: list[str]):
         cpts = self.bn.get_all_cpts()
         subgraph = self.bn.structure.subgraph(rest_nodes).copy()
