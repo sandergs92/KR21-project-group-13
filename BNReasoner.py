@@ -190,6 +190,33 @@ class BNReasoner:
             # Lastly multiply each new factor to get the prior marginal 
             return self.multiply_factors(list(pruned_cpts.values()))
 
+    def mpe(self, evidence: list[tuple], elimination_heuristic: int = 1):
+        # Prune network given the evidence
+        pruned_network, pruned_cpts = self.edge_pruning(self.bn.structure, evidence, self.bn.get_all_cpts())
+        q_nodes = list(pruned_network)
+        if elimination_heuristic == 1:
+                var_elim_order = self.min_degree_order(q_nodes)
+        elif elimination_heuristic == 2:
+            var_elim_order = self.min_fill_order(q_nodes)
+        for elim_node in var_elim_order:
+            for node in pruned_network.nodes():
+                if elim_node == node or node not in pruned_cpts.keys():
+                        continue
+                elim_node_cpt = pruned_cpts[elim_node]
+                network_node_cpt = pruned_cpts[node]
+                # Check for each CPT, does it contain the variable needs to be eliminated
+                if elim_node in network_node_cpt.columns.tolist()[:-1]:
+                    result_cpt = self.cpt_product(elim_node_cpt, network_node_cpt)
+                    result_cpt = self.max_out_vars(result_cpt, [elim_node])
+                    pruned_cpts[node] = result_cpt
+        mpe = self.multiply_factors(list(pruned_cpts.values()))
+        query = ''
+        for idx, piece in enumerate(evidence):
+            query += '`' + piece[0] + '` == ' + str(piece[1])
+            if idx != (len(evidence) - 1):
+                query += ' & '
+        return mpe.query(query)
+
     def node_pruning(self, rest_nodes: list[str]):
         cpts = self.bn.get_all_cpts()
         subgraph = self.bn.structure.subgraph(rest_nodes).copy()
