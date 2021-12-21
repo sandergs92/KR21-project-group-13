@@ -1,12 +1,13 @@
 from typing import Union
 from BayesNet import BayesNet
 from collections import defaultdict
-from itertools import product, combinations
+from itertools import product, combinations, groupby
 import networkx as nx
 import pandas as pd
 import numpy as np
 import math
 import copy
+import random
 
 class BNReasoner:
     def __init__(self, net: Union[str, BayesNet]):
@@ -45,6 +46,9 @@ class BNReasoner:
             else:
                 result_dsep = True
         return result_dsep
+
+    def random_order(self, elim_vars: list[str]):
+        return random.shuffle(elim_vars)
 
     def min_degree_order(self, elim_vars: list[str]):
         # Create interaction graph and set variable with nodes
@@ -209,18 +213,49 @@ class BNReasoner:
                     result_cpt = self.cpt_product(elim_node_cpt, network_node_cpt)
                     result_cpt = self.max_out_vars(result_cpt, [elim_node])
                     pruned_cpts[node] = result_cpt
-        mpe = self.multiply_factors(list(pruned_cpts.values()))
-        query = ''
-        for idx, piece in enumerate(evidence):
-            query += '`' + piece[0] + '` == ' + str(piece[1])
-            if idx != (len(evidence) - 1):
-                query += ' & '
-        return mpe.query(query)
+        mpe_cpt = self.multiply_factors(list(pruned_cpts.values()))
+        if evidence: 
+            query = ''
+            for idx, piece in enumerate(evidence):
+                query += '`' + piece[0] + '` == ' + str(piece[1])
+                if idx != (len(evidence) - 1):
+                    query += ' & '
+            mpe_cpt = mpe_cpt.query(query)
+        return mpe_cpt[mpe_cpt['p']==mpe_cpt['p'].max()]
 
     def map_instance(self, query_vars: list[str], evidence: list[tuple], elimination_heuristic: int = 1):
-        posterior = self.posterior_marginal(query_vars, evidence, elimination_heuristic)
-        max_pos = posterior['p'].max()
-        return posterior.loc[posterior['p'] == max_pos]
+        # prune network 
+        pruned_network, pruned_cpts = self.prune_network(query_vars, evidence)
+        # var elim order 
+        evidence_vars = [x[0] for x in evidence]
+        if elimination_heuristic == 1:
+            var_elim_order = self.min_degree_order(evidence_vars)
+            var_elim_order += self.min_degree_order(query_vars)
+        elif elimination_heuristic == 2:
+            var_elim_order = self.min_fill_order(evidence_vars)
+            var_elim_order += self.min_degree_order(query_vars)
+        for elim_node in var_elim_order:
+            for node in pruned_network.nodes():
+                if elim_node == node or node not in pruned_cpts.keys():
+                        continue
+                elim_node_cpt = pruned_cpts[elim_node]
+                network_node_cpt = pruned_cpts[node]
+                if elim_node in network_node_cpt.columns.tolist()[:-1]:
+                    result_cpt = self.cpt_product(elim_node_cpt, network_node_cpt)
+                    if elim_node in query_vars:
+                        result_cpt = self.max_out_vars(result_cpt, [elim_node])
+                    else:
+                        result_cpt = self.sum_out_vars(result_cpt, [elim_node])
+                    pruned_cpts[node] = result_cpt
+        map_cpt = self.multiply_factors(list(pruned_cpts.values()))
+        if evidence:
+            query = ''
+            for idx, piece in enumerate(evidence):
+                query += '`' + piece[0] + '` == ' + str(piece[1])
+                if idx != (len(evidence) - 1):
+                    query += ' & '
+            map_cpt = map_cpt.query(query)
+        return map_cpt[map_cpt['p']==map_cpt['p'].max()]
 
     def node_pruning(self, rest_nodes: list[str]):
         cpts = self.bn.get_all_cpts()
@@ -259,3 +294,64 @@ class BNReasoner:
             pruned_network, pruned_cpts = self.edge_pruning(node_pruned_network, evidence, pruned_cpts)
             return pruned_network, pruned_cpts
         return node_pruned_network, pruned_cpts
+
+    # [code adapted from: https://stackoverflow.com/questions/61958360/how-to-create-random-graph-where-each-node-has-at-least-1-edge-using-networkx]
+    # [author: yatu]
+    # [taken on: 16/12/2021]
+    ### Make sure to store random graphs and cpts that we use for our experiment!
+    def gnp_random_connected_graph(self, size=10, probability=0.1):
+        """
+        Generates a random undirected graph, similarly to an Erdős-Rényi 
+        graph, but enforcing that the resulting graph is connected
+        """
+        edges = combinations(range(size), 2)
+        G = nx.DiGraph()
+        node_names = ['node_' + str(x) for x in range(size)]
+        G.add_nodes_from(node_names)
+        if probability <= 0:
+            return G
+        if probability >= 1:
+            return nx.complete_graph(size, create_using=G)
+        for _, node_edges in groupby(edges, key=lambda x: x[0]):
+            node_edges = list(node_edges)
+            node_edges = [('node_' + str(edge[0]), 'node_' + str(edge[1])) for edge in node_edges]
+            random_edge = random.choice(node_edges)
+            G.add_edge(*random_edge)
+            for e in node_edges:
+                if random.random() < probability:
+                    G.add_edge(*e)
+        return G
+
+    def set_cpts(self, network: nx.DiGraph):
+        # retrieve nodes in the system
+        nodes = list(network.nodes())
+        cpts = {}
+        for node in nodes:
+            # retrieve parents of each node
+            predecessors = list(network.predecessors(node))
+            # create empty truth tables for each node
+            empty_truth_table = self.create_empty_truth_table(predecessors + [node])
+            # Assign to dictionary, using node as key and empty truth table as value
+            cpts[node] = empty_truth_table
+        # iterate over dictionary and assign probabilities
+        for _, t_table in cpts.items():
+            table_size = len(t_table)
+            for i in range(0, table_size, 2):
+                prob = round(random.uniform(0, 1), 2)
+                true_value = 1 - prob
+                t_table.at[t_table.index[i], 'p'] = prob
+                t_table.at[t_table.index[i+1], 'p'] = true_value
+        return cpts
+
+    def performance_evaluation(self, n_networks, factor=10, size=10, probability=0.1):
+        network_dict = {}
+        # create n_networks number of randomized Bayesian networks
+        count = 1
+        for _ in range(n_networks):
+            name = "network" + str(count)
+            network = self.gnp_random_connected_graph(size, probability)
+            cpts = self.set_cpts()
+            network_dict[name] = {'network': network, 'cpts': cpts}
+            count += 1
+            size += factor
+        return network_dict
