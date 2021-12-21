@@ -206,7 +206,6 @@ class BNReasoner:
             var_elim_order = self.min_fill_order(q_nodes)
         elif elimination_heuristic == 3:
             var_elim_order = self.random_order(q_nodes)
-        print(var_elim_order, pruned_network.nodes())
         for elim_node, node in product(var_elim_order, pruned_network.nodes()):
             if elim_node == node or node not in pruned_cpts.keys() or elim_node not in pruned_cpts.keys():
                 continue
@@ -237,7 +236,7 @@ class BNReasoner:
             var_elim_order += self.min_degree_order(query_vars)
         elif elimination_heuristic == 2:
             var_elim_order = self.min_fill_order(evidence_vars)
-            var_elim_order += self.min_degree_order(query_vars)
+            var_elim_order += self.min_fill_order(query_vars)
         elif elimination_heuristic == 3:
             var_elim_order = self.random_order(evidence_vars)
             var_elim_order += self.random_order(query_vars)
