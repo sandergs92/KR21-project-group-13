@@ -202,17 +202,18 @@ class BNReasoner:
                 var_elim_order = self.min_degree_order(q_nodes)
         elif elimination_heuristic == 2:
             var_elim_order = self.min_fill_order(q_nodes)
-        for elim_node in var_elim_order:
-            for node in pruned_network.nodes():
-                if elim_node == node or node not in pruned_cpts.keys():
-                        continue
-                elim_node_cpt = pruned_cpts[elim_node]
-                network_node_cpt = pruned_cpts[node]
-                # Check for each CPT, does it contain the variable needs to be eliminated
-                if elim_node in network_node_cpt.columns.tolist()[:-1]:
-                    result_cpt = self.cpt_product(elim_node_cpt, network_node_cpt)
-                    result_cpt = self.max_out_vars(result_cpt, [elim_node])
-                    pruned_cpts[node] = result_cpt
+        elif elimination_heuristic == 3:
+            var_elim_order = self.random_order(q_nodes)
+        for elim_node, node in product(var_elim_order, pruned_network.nodes()):
+            if elim_node == node or node not in pruned_cpts.keys():
+                    continue
+            elim_node_cpt = pruned_cpts[elim_node]
+            network_node_cpt = pruned_cpts[node]
+            # Check for each CPT, does it contain the variable needs to be eliminated
+            if elim_node in network_node_cpt.columns.tolist()[:-1]:
+                result_cpt = self.cpt_product(elim_node_cpt, network_node_cpt)
+                result_cpt = self.max_out_vars(result_cpt, [elim_node])
+                pruned_cpts[node] = result_cpt
         mpe_cpt = self.multiply_factors(list(pruned_cpts.values()))
         if evidence: 
             query = ''
@@ -234,19 +235,21 @@ class BNReasoner:
         elif elimination_heuristic == 2:
             var_elim_order = self.min_fill_order(evidence_vars)
             var_elim_order += self.min_degree_order(query_vars)
-        for elim_node in var_elim_order:
-            for node in pruned_network.nodes():
-                if elim_node == node or node not in pruned_cpts.keys():
-                        continue
-                elim_node_cpt = pruned_cpts[elim_node]
-                network_node_cpt = pruned_cpts[node]
-                if elim_node in network_node_cpt.columns.tolist()[:-1]:
-                    result_cpt = self.cpt_product(elim_node_cpt, network_node_cpt)
-                    if elim_node in query_vars:
-                        result_cpt = self.max_out_vars(result_cpt, [elim_node])
-                    else:
-                        result_cpt = self.sum_out_vars(result_cpt, [elim_node])
-                    pruned_cpts[node] = result_cpt
+        elif elimination_heuristic == 3:
+            var_elim_order = self.random_order(evidence_vars)
+            var_elim_order += self.random_order(query_vars)
+        for elim_node, node in product(var_elim_order, pruned_network.nodes()):
+            if elim_node == node or node not in pruned_cpts.keys():
+                    continue
+            elim_node_cpt = pruned_cpts[elim_node]
+            network_node_cpt = pruned_cpts[node]
+            if elim_node in network_node_cpt.columns.tolist()[:-1]:
+                result_cpt = self.cpt_product(elim_node_cpt, network_node_cpt)
+                if elim_node in query_vars:
+                    result_cpt = self.max_out_vars(result_cpt, [elim_node])
+                else:
+                    result_cpt = self.sum_out_vars(result_cpt, [elim_node])
+                pruned_cpts[node] = result_cpt
         map_cpt = self.multiply_factors(list(pruned_cpts.values()))
         if evidence:
             query = ''
