@@ -48,7 +48,9 @@ class BNReasoner:
         return result_dsep
 
     def random_order(self, elim_vars: list[str]):
-        return random.shuffle(elim_vars)
+        random_order = elim_vars
+        random.shuffle(random_order)
+        return random_order
 
     def min_degree_order(self, elim_vars: list[str]):
         # Create interaction graph and set variable with nodes
@@ -205,8 +207,8 @@ class BNReasoner:
         elif elimination_heuristic == 3:
             var_elim_order = self.random_order(q_nodes)
         for elim_node, node in product(var_elim_order, pruned_network.nodes()):
-            if elim_node == node or node not in pruned_cpts.keys():
-                    continue
+            if elim_node == node or node not in pruned_cpts.keys() or elim_node not in pruned_cpts.keys():
+                continue
             elim_node_cpt = pruned_cpts[elim_node]
             network_node_cpt = pruned_cpts[node]
             # Check for each CPT, does it contain the variable needs to be eliminated
@@ -234,13 +236,13 @@ class BNReasoner:
             var_elim_order += self.min_degree_order(query_vars)
         elif elimination_heuristic == 2:
             var_elim_order = self.min_fill_order(evidence_vars)
-            var_elim_order += self.min_degree_order(query_vars)
+            var_elim_order += self.min_fill_order(query_vars)
         elif elimination_heuristic == 3:
             var_elim_order = self.random_order(evidence_vars)
             var_elim_order += self.random_order(query_vars)
         for elim_node, node in product(var_elim_order, pruned_network.nodes()):
-            if elim_node == node or node not in pruned_cpts.keys():
-                    continue
+            if elim_node == node or node not in pruned_cpts.keys() or elim_node not in pruned_cpts.keys():
+                continue
             elim_node_cpt = pruned_cpts[elim_node]
             network_node_cpt = pruned_cpts[node]
             if elim_node in network_node_cpt.columns.tolist()[:-1]:
@@ -251,13 +253,16 @@ class BNReasoner:
                     result_cpt = self.sum_out_vars(result_cpt, [elim_node])
                 pruned_cpts[node] = result_cpt
         map_cpt = self.multiply_factors(list(pruned_cpts.values()))
-        if evidence:
-            query = ''
-            for idx, piece in enumerate(evidence):
-                query += '`' + piece[0] + '` == ' + str(piece[1])
-                if idx != (len(evidence) - 1):
-                    query += ' & '
-            map_cpt = map_cpt.query(query)
+        try:
+            if evidence:
+                query = ''
+                for idx, piece in enumerate(evidence):
+                    query += '`' + piece[0] + '` == ' + str(piece[1])
+                    if idx != (len(evidence) - 1):
+                        query += ' & '
+                map_cpt = map_cpt.query(query)
+        except:
+            print(".")
         return map_cpt[map_cpt['p']==map_cpt['p'].max()]
 
     def node_pruning(self, rest_nodes: list[str]):
